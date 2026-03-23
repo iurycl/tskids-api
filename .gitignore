@@ -1,0 +1,26 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.swp
+*.DS_Store
+
+## EF Migrations (geradas localmente, não versionar)
+# TsKids.Infrastructure/Migrations/
+
+## Configs com senha (nunca versionar)
+appsettings.Development.json
+appsettings.Production.json
+*.pfx
+*.p12
+secrets.json
+
+## Publicação
+publish/
+out/
+
+## Logs
+*.log
+logs/
