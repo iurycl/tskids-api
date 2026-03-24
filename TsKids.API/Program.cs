@@ -7,17 +7,50 @@ using TsKids.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Connection String ─────────────────────────────────────────────
+// Railway injeta DATABASE_URL no formato:
+// postgresql://user:password@host:port/database
+// Também aceita a string no formato EF Core via appsettings.json
+static string BuildConnectionString()
+{
+    var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrEmpty(databaseUrl))
+    {
+        // Converter formato postgresql:// para formato Npgsql
+        var uri = new Uri(databaseUrl);
+        var userInfo = uri.UserInfo.Split(':');
+        return $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+    }
+
+    // Fallback: variáveis individuais do Railway (PGHOST, PGPORT etc.)
+    var pgHost     = Environment.GetEnvironmentVariable("PGHOST");
+    var pgPort     = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
+    var pgDb       = Environment.GetEnvironmentVariable("PGDATABASE");
+    var pgUser     = Environment.GetEnvironmentVariable("PGUSER");
+    var pgPassword = Environment.GetEnvironmentVariable("PGPASSWORD");
+
+    if (!string.IsNullOrEmpty(pgHost))
+        return $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPassword};SSL Mode=Require;Trust Server Certificate=true";
+
+    // Local: ler do appsettings
+    return string.Empty;
+}
+
 // ── Services ──────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "TsKids API", Version = "v1", Description = "Marketplace de Carrinhos de Bebê" });
+    c.SwaggerDoc("v1", new() { Title = "TsKids API", Version = "v1", Description = "Marketplace de Carrinhos Eletricos Infantis" });
 });
 
 // Database
+var connStr = BuildConnectionString();
 builder.Services.AddDbContext<TsKidsDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    opt.UseNpgsql(
+        string.IsNullOrEmpty(connStr)
+            ? builder.Configuration.GetConnectionString("DefaultConnection")
+            : connStr));
 
 // Repositories & Use Cases
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -26,15 +59,17 @@ builder.Services.AddScoped<GetProductsUseCase>();
 builder.Services.AddScoped<GetProductByIdUseCase>();
 builder.Services.AddScoped<GetCategoriesUseCase>();
 
-// CORS
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:8100", "http://localhost:4200"];
-
+// CORS — em produção aceita qualquer origem (Vercel gera URLs dinâmicas)
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(opt =>
     opt.AddPolicy("TsKidsPolicy", p =>
-        p.WithOrigins(allowedOrigins)
-         .AllowAnyHeader()
-         .AllowAnyMethod()));
+    {
+        if (builder.Environment.IsProduction())
+            p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        else
+            p.WithOrigins(allowedOrigins ?? ["http://localhost:8100", "http://localhost:4200"])
+             .AllowAnyHeader().AllowAnyMethod();
+    }));
 
 var app = builder.Build();
 
@@ -46,14 +81,16 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Middleware ────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "TsKids API v1"));
-}
+// Swagger disponível também em produção para facilitar testes
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "TsKids API v1"));
 
 app.UseCors("TsKidsPolicy");
-app.UseHttpsRedirection();
+
+// Railway usa HTTP internamente (HTTPS é terminado no proxy deles)
+if (!app.Environment.IsProduction())
+    app.UseHttpsRedirection();
+
 app.UseAuthorization();
 app.MapControllers();
 
