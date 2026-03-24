@@ -3,8 +3,8 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "dotnet TsKids.API.dll"
+# startCommand removido — o CMD do Dockerfile ja define o comando com PORT dinamico
 healthcheckPath = "/swagger/index.html"
-healthcheckTimeout = 60
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copiar csproj e restaurar dependências
+# Copiar csproj e restaurar dependencias
 COPY TsKids.Domain/TsKids.Domain.csproj             TsKids.Domain/
 COPY TsKids.Application/TsKids.Application.csproj   TsKids.Application/
 COPY TsKids.Infrastructure/TsKids.Infrastructure.csproj TsKids.Infrastructure/
@@ -18,7 +18,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Railway injeta a variável PORT automaticamente
-ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
-
-ENTRYPOINT ["dotnet", "TsKids.API.dll"]
+# IMPORTANTE: usar CMD com shell para que ${PORT} seja expandido em RUNTIME.
+# ENV no Dockerfile e avaliado em BUILD TIME e nunca captura o PORT do Railway.
+CMD ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet TsKids.API.dll"]

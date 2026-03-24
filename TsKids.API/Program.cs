@@ -94,4 +94,6 @@ if (!app.Environment.IsProduction())
 app.UseAuthorization();
 app.MapControllers();
 
-app.Run();
+// Lê PORT em runtime (Railway injeta essa variável)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Run($"http://+:{port}");
